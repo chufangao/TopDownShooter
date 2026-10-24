@@ -62,8 +62,9 @@ test('each new kind is simple: tier 1, one blow of its own and at most a basic, 
     assert.ok(Number.isInteger(d.spawn.weight) && d.spawn.weight > 0, `${id}: a spawn weight`)
     assert.ok(d.abilities.length >= 1 && d.abilities.length <= 2 && (d.abilities.length === 1 || d.abilities.at(-1) === 'strike'), `${id}: ${d.abilities}`)
     assert.ok(!d.aura && !d.flies && !d.onFall && !d.rule && !d.arm && !d.size, `${id}: nothing more`)
-    assert.equal(d.behaviour, 'walk')
-    assert.ok(BEHAVIOURS[d.behaviour])
+    // A sentry Holds (its kind's `hold`, no behaviour beside it); the rest Walk.
+    assert.equal(d.hold ? 'hold' : d.behaviour, ['brass_sentry', 'hive_spitter', 'thornling'].includes(id) ? 'hold' : 'walk', id)
+    assert.ok(d.hold ? !d.behaviour && BEHAVIOURS.hold : BEHAVIOURS[d.behaviour], id)
     assert.ok(Object.values(TEMPERS).includes(d.temper), `${id}: a preset temper`)
     assert.ok(d.threats.length && d.threats.every((t) => THREATS[t]), id)
     assert.ok(d.flavour && !d.flavour.includes('\n'), `${id}: one line`)
@@ -84,7 +85,8 @@ test('each new kind is simple: tier 1, one blow of its own and at most a basic, 
     const d = UNITS[id]
     assert.deepEqual([d.kin, d.role], [kin, 'ranger'], id)
     const a = ABILITIES[d.abilities[0]]
-    assert.deepEqual([d.abilities.length, a.shape, a.range, !!a.melee, !!a.arc], [1, 'single', 3, false, false], id)
+    // The Sentry's bolt a tile longer than the others' spit, so a wall does not shelter from it.
+    assert.deepEqual([d.abilities.length, a.shape, a.range, !!a.melee, !!a.arc], [1, 'single', id === 'brass_sentry' ? 4 : 3, false, false], id)
     assert.equal(basicOf(d.abilities.map((x) => ABILITIES[x])).id, a.id, `${id}: its spit its basic`)
   }
   assert.equal(UNITS.brass_sentry.move, 1)

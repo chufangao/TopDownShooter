@@ -1,6 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
+import { drawRoom, roomThreats, SENTRY_POSTS } from '../src/sim/spawn.js'
+import { rowOf, colOf } from '../src/sim/unit.js'
+import { unitDef } from '../src/content.js'
+import { TUNING } from '../src/tuning.js'
 
 // The room types: no Shop among them.
 const TYPES = ['fight', 'elite', 'altar', 'boss', 'siege']
@@ -61,4 +65,35 @@ test('500 seeded floors keep the rank, link and type rules, and no room is a Sho
       }
     }
   }
+})
+
+// Sentries (kinds marked `hold`) in the rooms: each wave's on its posts (the far row from the wings in, then the middle
+// row's wings), so no walker of the wave stands behind one in its lane; none in floor 1's rooms before rank
+// sentry.from (its first two); a room with one carries the sentries threat, and only such a room.
+test('sentries stand on their posts off the walkers\' road, never in floor 1\'s first two rooms, and mark their rooms', () => {
+  let sentries = 0
+  for (let i = 0; i < 60; i++) {
+    for (const floor of [1, 2, 3]) {
+      const map = generateFloor({ seed: 'posts' + i, floor, boss: true })
+      for (const node of map.nodes.filter((n) => ['fight', 'elite', 'siege', 'boss'].includes(n.type))) {
+        const room = drawRoom('posts' + i, floor, node)
+        const where = `seed ${i} floor ${floor} ${node.id} rank ${node.rank}`
+        const waves = [room.foes, ...(room.waves ?? []).map((w) => w.foes)]
+        const held = waves.flat().filter((f) => unitDef(f.id).hold)
+        assert.equal(roomThreats(room).has('sentries'), held.length > 0, where)
+        if (floor === 1 && node.rank < TUNING.spawn.sentry.from) assert.equal(held.length, 0, `${where}: a sentry before rank ${TUNING.spawn.sentry.from}`)
+        sentries += held.length
+        for (const foes of waves) {
+          const posts = foes.filter((f) => unitDef(f.id).hold)
+          if (posts.length <= SENTRY_POSTS.length) assert.ok(posts.every((f) => SENTRY_POSTS.includes(f.slot)), `${where}: ${posts.map((f) => f.slot)}`)
+          for (const f of foes.filter((x) => !unitDef(x.id).hold)) {
+            assert.ok(!posts.some((p) => colOf(p.slot) === colOf(f.slot) && rowOf(p.slot) < rowOf(f.slot)), `${where}: ${f.id} at ${f.slot} behind a sentry`)
+          }
+        }
+      }
+    }
+  }
+  assert.ok(sentries > 0, 'sentries come')
+  // The posts: the far row, then the middle row's wings, never the front row.
+  assert.ok(SENTRY_POSTS.every((slot) => rowOf(slot) >= 1) && SENTRY_POSTS.slice(0, 7).every((slot) => rowOf(slot) === 2))
 })

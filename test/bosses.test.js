@@ -9,6 +9,7 @@ import {
   roomThreats, unanswered, answerArmy, ANSWERS, routeThreats, ascensionTop, ascensionOf, souls, START_PARTY, currentNode, eliteBonus, foeEssence
 } from '../src/sim/run.js'
 import { RULES } from '../src/sim/rules.js'
+import { SENTRY_POSTS } from '../src/sim/spawn.js'
 import { floorOf, policy, LEVELS } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
@@ -131,8 +132,11 @@ test('a boss a floor: floors 1 and 2 end in a floor\'s boss and its court, the l
         // A floor's boss stands with its court alone, as the floor's last room: no waves before it.
         assert.equal(forms.length, 1, `${seed} floor ${f}: one formation`)
         assert.ok(d.floors.includes(f))
-        // The Barrow Marshal behind the middle of the front row, its court across it from the middle out.
-        if (d.court.front) assert.deepEqual(court.map((x) => x.slot), [slotAt(1, CENTRE_OUT[0]), ...CENTRE_OUT.slice(0, court.length - 1).map((c) => slotAt(0, c))])
+        // The Barrow Marshal behind the middle of the front row, its court across it from the middle out; a sentry of
+        // the court on a sentry's post instead (spawn.js SENTRY_POSTS), off the road the Marshal walks.
+        const walkers = court.slice(1).filter((x) => !UNITS[x.id].hold)
+        assert.ok(court.slice(1).filter((x) => UNITS[x.id].hold).every((x) => SENTRY_POSTS.includes(x.slot)), `${seed} floor ${f}: the court's sentries posted`)
+        if (d.court.front) assert.deepEqual([court[0], ...walkers].map((x) => x.slot), [slotAt(1, CENTRE_OUT[0]), ...CENTRE_OUT.slice(0, walkers.length).map((c) => slotAt(0, c))])
         else assert.equal(court[0].slot, slotAt(0, CENTRE_OUT[0]))
       } else {
         assert.equal(forms.length, TUNING.spawn.waves.siege)

@@ -189,7 +189,8 @@ test('every kind is one record: base, Move, temper, threats, two tracks of four 
     assert.equal(u.behaviour === 'fly', !!u.flies, `${where} flies`)
     assert.equal(u.behaviour === 'fly', u.threats.includes('fly'), `${where} fly threat`)
     assert.ok(u.boss || u.spawn, `${where} spawns`)
-    assert.ok(BEHAVIOURS[u.behaviour], `${where} moves by a known behaviour`)
+    // A sentry Holds as a foe (`hold`, in place of a behaviour); every other kind moves by a known behaviour.
+    assert.ok(u.hold ? !u.behaviour && !u.flies : BEHAVIOURS[u.behaviour], `${where} moves by a known behaviour`)
   }
   assert.deepEqual(Object.keys(TRACKS).sort(), UNIT_LIST.filter((u) => !u.monarch && !u.boss).map((u) => u.id).sort(), 'TRACKS is the defs\', no table apart')
   // The temperaments: a preset by name, or a copy of one tweaked. The Ghoul hunts where the armour is thinnest; the
@@ -219,12 +220,12 @@ test('every kind is one record: base, Move, temper, threats, two tracks of four 
 })
 
 test('the foes by floor: each pool brings its threats and its statuses', () => {
-  // The foes scale in kind by floor: floor 1's pool carries every threat type but depth (a room's, not a
-  // kind's: it comes with waves), fly and bleed; floor 2 brings the flyer, the death burst, the Mantis's Bleed and the
+  // The foes scale in kind by floor: floor 1's pool carries every threat type but depth and sentries (a room's, not
+  // a kind's: they come with waves and with a kind that holds), fly and bleed; floor 2 brings the flyer, the death burst, the Mantis's Bleed and the
   // Golem's Quake, which Hexes; floor 3 the hexer and the flying burner.
   const pool = (floor) => UNIT_LIST.filter((u) => u.spawn?.minFloor === floor)
   const lays = (u, status) => u.abilities.some((a) => ABILITIES[a].effects.some((e) => e.status === status))
-  assert.deepEqual(new Set(pool(1).flatMap((u) => u.threats)), new Set(Object.keys(THREATS).filter((t) => t !== 'depth' && t !== 'fly' && t !== 'bleed')))
+  assert.deepEqual(new Set(pool(1).flatMap((u) => u.threats)), new Set(Object.keys(THREATS).filter((t) => t !== 'depth' && t !== 'sentries' && t !== 'fly' && t !== 'bleed')))
   assert.ok(pool(1).some((u) => lays(u, 'burning')), 'Burning on floor 1')
   assert.ok(!pool(1).some((u) => u.flies || u.onFall || lays(u, 'hexed')), 'no flyer, burst or Hex on floor 1')
   assert.ok(pool(2).some((u) => u.threats.includes('bleed') && lays(u, 'bleeding')), 'Bleed on floor 2')

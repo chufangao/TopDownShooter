@@ -7,7 +7,7 @@ import { hashString } from './rng.js'
 import {
   alive, livingOn, enemySide, isAllyShape, isBlow, footprint, distanceBetween, unitDistance, rangeOf, expand, makeUnit, sizeOf, tileX, tileY,
   tileAt, NEIGHBOURS, deployTile, statsOf, synergyCounts, synergyActive, abilitiesOf, auraOf, armOf, blowReach, summonsOf, summonedOf, heldMods, CENTRE_OUT, TILES,
-  LINE_AT, LINE_TILES, lineEnds, between
+  LINE_AT, LINE_TILES, lineEnds, between, sentryHp
 } from './unit.js'
 import {
   LANE, field, fieldOf, airOf, roadOf, arrowOf, roadLeft, layerOf, around, foesNextTo, pressed, auraGivers, riseTile, summonTile, entryTile
@@ -84,6 +84,8 @@ const fresh = (u) => ({ ...u, relics: (u.relics ?? []).slice(), statuses: [], ph
 function occupy (battle, u) {
   if (!alive(u)) throw new Error(`${u.id} has no HP to fight with`)
   u.flies = !!unitDef(u.id).flies
+  // A foe of a kind marked `hold` holds its tile (a sentry): its Move 0 all battle (moveOf), never yours.
+  u.hold = u.side === 'foe' && !!unitDef(u.id).hold
   u.size = u.side === 'party' ? sizeOf(u) : 1
   const tiles = Number.isInteger(u.tile) && u.tile >= 0 && u.tile < TILES ? footprint(u.tile, u.size) : null
   if (!tiles || (!u.flies && tiles.some((t) => battle.walls.has(t)))) throw new Error(`tile ${u.tile} cannot be stood on`)
@@ -116,10 +118,12 @@ function occupy (battle, u) {
   u.mend = mendOf(u.kit)
 }
 
-// Max HP with its HP mods, read once as it takes its place (a summon's × TUNING.summon.hp), HP keeping its fraction.
+// Max HP with its HP mods, read once as it takes its place (a summon's × TUNING.summon.hp; a sentry's at most sentryHp),
+// HP keeping its fraction.
 function fit (battle, u) {
   if (u === battle.monarch) return
-  const max = Math.max(1, Math.round(stats(battle, u).hp * (u.summoned ? TUNING.summon.hp : 1)))
+  const whole = Math.round(stats(battle, u).hp * (u.summoned ? TUNING.summon.hp : 1))
+  const max = Math.max(1, u.hold ? Math.min(whole, sentryHp(u.lvl)) : whole)
   if (max === u.maxHp) return
   u.hp = Math.max(1, Math.round(u.hp * max / u.maxHp))
   u.maxHp = max
@@ -131,7 +135,7 @@ export function enterBattle (battle, u) {
   occupy(battle, unit)
   battle.roster++
   fit(battle, unit)
-  unit.move = unit === battle.monarch ? 0 : Math.max(0, Math.floor(stats(battle, unit).move))
+  unit.move = moveOf(battle, unit)
   unit.energy = energyOf(battle, unit)
   return unit
 }
@@ -182,10 +186,13 @@ const ready = (u) => {
   u.from = u.tile
 }
 
-// Every living unit's Move as its stats give it now; the Monarch never moves.
+// Every living unit's Move as its stats give it now; the Monarch never moves, nor a sentry foe (it holds its tile).
 function refresh (battle) {
-  for (const u of battle.units) if (alive(u)) u.move = u === battle.monarch ? 0 : Math.max(0, Math.floor(stats(battle, u).move))
+  for (const u of battle.units) if (alive(u)) u.move = moveOf(battle, u)
 }
+// `u`'s Move now: its stats', none for the Monarch or a sentry foe (`hold`). A sentry keeps its energy (energyOf reads
+// its stats' Move, as a Rooted piece's), so its skills stay paid for.
+const moveOf = (battle, u) => (u === battle.monarch || u.hold ? 0 : Math.max(0, Math.floor(stats(battle, u).move)))
 
 // A side's energy for its turn, set as the turn begins and held through it: a Move that changes on the way (an aura
 // left behind, a status laid) changes the tiles it may still walk, never what it was given.

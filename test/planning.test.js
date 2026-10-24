@@ -37,6 +37,9 @@ function prep (seed) {
 }
 
 // The cells a formation's fielded pieces but `except` cover.
+// The whole-run tests' fixture: runs the expert loses within a few battles (the top of the ladder), so a test that
+// plays runs to their end stays quick; any level that keeps them short will do when the balance moves.
+const WHOLE = { ascension: 10 }
 const covered = (party, except = null) => new Set(party.filter((u) => u !== except && u.slot >= 0).flatMap((u) => footprintSlots(u.slot, sizeOf(u))))
 
 test('the drafts, in every camp: the Monarch on its seat, every piece where its footprint fits, a 2×2 piece left out only where it fits nowhere', () => {
@@ -496,7 +499,7 @@ test('no decision of the expert out of battle but its formation plays a battle o
   const undo = [spy(TUNING.policy, 'press', 'press'), spy(TUNING.turn, 'guard', 'guard')]
   try {
     for (const seed of ['norehearse-0', 'norehearse-1']) {
-      const run = createRun({ start: START_PARTY, seed })
+      const run = createRun({ start: START_PARTY, seed, ...WHOLE })
       const rng = createRng(seed).stream('autoplay')
       while (run.state.phase !== 'over') {
         const phase = run.state.phase
@@ -515,9 +518,9 @@ test('no decision of the expert out of battle but its formation plays a battle o
 // A full expert run on a few seeds plays to its end, the same seed the same run. Functional only: never how far it gets.
 test('a full expert run finishes on a few seeds, the same seed the same run', () => {
   for (const seed of ['full-0', 'full-1', 'full-2']) {
-    const r = record({ seed, level: 'expert' })
+    const r = record({ seed, level: 'expert', ...WHOLE })
     assert.ok(['victory', 'defeat'].includes(r.result) && r.battles.length > 0, seed)
   }
-  const log = autoplay(createRun({ start: START_PARTY, seed: 'full-0' }), { level: 'expert' }).state.log
-  assert.deepEqual(autoplay(createRun({ start: START_PARTY, seed: 'full-0' }), { level: 'expert' }).state.log, log)
+  const log = autoplay(createRun({ start: START_PARTY, seed: 'full-0', ...WHOLE }), { level: 'expert' }).state.log
+  assert.deepEqual(autoplay(createRun({ start: START_PARTY, seed: 'full-0', ...WHOLE }), { level: 'expert' }).state.log, log)
 })

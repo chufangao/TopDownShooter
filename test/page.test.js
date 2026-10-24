@@ -148,6 +148,15 @@ test('the Map draws after the draft: a locked room ahead is named in its hint an
 
 // ── the intents ──────────────────────────────────────────────────────────────────────────────────
 
+// A sentry with nothing of yours in its reach: HOLDS over it on the board, and no walk drawn.
+test('a sentry out of reach of everything is drawn as holding: HOLDS over it, no path, no ghost', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3, 10), on('brass_sentry', 50, 'foe', 0, 10, 1)])
+  const sc = sceneOf(b)
+  sc.plan()
+  assert.deepEqual(marksOver(sc, 50).map((m) => m.str), ['HOLDS'])
+  assert.equal(sc.intentGhosts.length, 0)
+})
+
 // A knight beside a ghoul, another knight beside it too; a shooter far down the road.
 const board = () => scene([
   on('monarch', 0, 'party', 3, 0),

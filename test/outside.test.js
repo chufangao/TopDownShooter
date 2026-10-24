@@ -14,15 +14,16 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FLAT_ROOMS } from './tuned.js'
 
-// sim-10's expert falls on floor 1 after five battles: a whole run in about a second, so a playout to its end is cheap.
-// (sim-0 until the pool was flattened, 2026-10-15: its run clears now.)
-const SEED = 'sim-10'
+// The fixture: a run the expert loses on floor 1 within a few battles, meeting no altar on the way, so a whole run (and
+// a playout to its end) takes a few seconds. sim-7 at the top of the ladder is one; re-seed it when the balance moves.
+const SEED = 'sim-7'
+const ASCENSION = 10
 const copyOf = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
 
-// The base's run on `seed`, each step out of battle handed to `visit(run, action)` before it is applied; `until(run)`
-// stops it there (the run as it stands, out of battle). → { run, rng }
-function walk (seed, { visit = null, until = null } = {}) {
-  const run = createRun({ seed })
+// The base's run on `seed` at `ascension` (the fixture's), each step out of battle handed to `visit(run, action)` before
+// it is applied; `until(run)` stops it there (the run as it stands, out of battle). → { run, rng }
+function walk (seed, { visit = null, until = null, ascension = ASCENSION } = {}) {
+  const run = createRun({ seed, ascension })
   const rng = createRng(seed).stream('autoplay')
   while (run.state.phase !== 'over') {
     if (run.state.phase !== 'battle' && until?.(run)) break
@@ -43,7 +44,7 @@ test('baseStep is the base\'s step out of battle, step for step', () => {
   assert.ok(n > 10)
 })
 
-// sim-10's expert meets no altar before it falls: its first map step after a battle, every room open made an altar.
+// The fixture's expert meets no altar before it falls: its first map step after a battle, every room open made an altar.
 test('at an altar baseStep is the base\'s rite, its pick the first candidate, and the teacher plays the rites out', () => {
   const { run, rng } = walk(SEED, { until: (r) => r.state.phase === 'map' && r.state.log.some((a) => a.type === 'reap') })
   for (const n of availableNodes(run)) n.type = 'altar'
@@ -163,8 +164,8 @@ test('with won, a decision whose base\'s line clears the run plays that line alo
   const late = (r) => r.state.floor === TUNING.run.floors && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2
   let got = null
   for (let k = 1; k <= 12 && !got; k++) {
-    if (walk(`sim-${k}`).run.state.result !== 'victory') continue
-    const w = walk(`sim-${k}`, { until: late })
+    if (walk(`sim-${k}`, { ascension: 0 }).run.state.result !== 'victory') continue
+    const w = walk(`sim-${k}`, { until: late, ascension: 0 })
     if (w.run.state.phase !== 'over') got = w
   }
   assert.ok(got, 'some seed clears the run with a late choice on the last floor')
@@ -180,8 +181,8 @@ test('with won, a decision whose base\'s line clears the run plays that line alo
 }))
 
 test('a cap of 1 plays as the base, and a run\'s line reads as the report wants it', () => {
-  const r = outsideRun(SEED, { cap: 1, log: true })
-  const base = autoplay(createRun({ seed: SEED }), { level: 'expert' })
+  const r = outsideRun(SEED, { cap: 1, log: true, ascension: ASCENSION })
+  const base = autoplay(createRun({ seed: SEED, ascension: ASCENSION }), { level: 'expert' })
   assert.deepEqual(r.log, base.state.log)
   assert.equal(r.playouts, 0)
   assert.equal(r.decisions, 0)

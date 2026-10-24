@@ -114,8 +114,9 @@ const DANGER_A = new Array(TILES).fill(0)
 export const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id === 'hexed' && (s.fresh || s.dur === 'battle' || s.dur > 1)))
 
 // The tiles `u` could strike from on its side's next turn: a foe's road ahead within `tiles` (or the one tile `at`
-// names), a piece of yours anywhere `tiles` reaches, a summon or a shadow where it stands (its End Turn walk unread).
-const spotsOf = (battle, u, at, tiles) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadTiles(battle, u, tiles))
+// names; a sentry's own tile, which it holds), a piece of yours anywhere `tiles` reaches, a summon or a shadow where it
+// stands (its End Turn walk unread).
+const spotsOf = (battle, u, at, tiles) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : u.hold ? [u.tile] : roadTiles(battle, u, tiles))
   : orderable(battle, u) ? [u.tile, ...reach(battle, u, tiles).keys()] : [u.tile]
 // spotsOf's tiles, each with the steps it takes, the fewest first: a road's tile its place on the road, a reached
 // tile its path's length. Those within k steps are spotsOf's at k (a road's first k + 1; reach's within k).
@@ -141,7 +142,8 @@ export function strideNext (battle, u, b = null) {
 }
 
 // What a unit could strike on its side's next turn, for the board to light when a foe is tapped (every blow, no line of
-// fire; a Hexed one nothing). → { move (road order), ground, air }: tile lists, ascending.
+// fire; a Hexed one nothing): a sentry's reach from the tile it holds. → { move (road order), ground, air }: tile lists,
+// ascending.
 export function threatOf (battle, u) {
   const move = alive(u) ? spotsOf(battle, u, null, strideNext(battle, u)) : []
   const ground = new Array(TILES).fill(0)
@@ -281,10 +283,11 @@ const onSide = (battle, side, map) => battle.units.reduce((n, u) => n + (u.side 
 
 // ── options and their scores ─────────────────────────────────────────────────────────────────────
 
-// A unit's options: each tile it may stand on this turn (a foe's road ahead; yours, where it stands and, unless `moving`
-// is false, its Move's reach), holding or each act from there. → [{ tile, path, ability, target }] (null: holding).
+// A unit's options: each tile it may stand on this turn (a foe's road ahead, a sentry's own tile alone; yours, where it
+// stands and, unless `moving` is false, its Move's reach), holding or each act from there.
+// → [{ tile, path, ability, target }] (null: holding).
 export function options (battle, u, { moving = true } = {}) {
-  const spots = u.side === 'foe' ? roadAhead(battle, u)
+  const spots = u.side === 'foe' ? (u.hold ? [{ tile: u.tile, path: [] }] : roadAhead(battle, u))
     : [{ tile: u.tile, path: [] }, ...(moving && !u.acted ? [...reach(battle, u)].map(([tile, path]) => ({ tile, path })) : [])]
   const acts = canAct(battle, u) ? u.kit.filter((a) => usable(battle, u, a)) : []
   const out = []
@@ -467,10 +470,11 @@ export const better = (o, b) => {
 }
 
 // A unit's best option by `score`; a foe whose options hold no blow at one of yours, from any tile of its road ahead
-// this turn, weighs its road at TUNING.policy.walk's aggression at least.
+// this turn, weighs its road at TUNING.policy.walk's aggression at least: it comes. A sentry never comes, so it skips
+// that judgement: it acts from its tile or holds.
 export function choose (battle, u, temper, p, map, opts = options(battle, u)) {
   const least = TUNING.policy.walk
-  const idle = u.side === 'foe' && !opts.some((o) => o.ability && isBlow(o.ability) && o.target.side !== u.side)
+  const idle = u.side === 'foe' && !u.hold && !opts.some((o) => o.ability && isBlow(o.ability) && o.target.side !== u.side)
   if (idle && temper.aggression < least) temper = { ...temper, aggression: least }
   const ctx = { danger: map, prey: preyOf(battle, u, opts, temper, p) }
   let best = null
@@ -486,7 +490,8 @@ export function choose (battle, u, temper, p, map, opts = options(battle, u)) {
 // ── the camp's turn ──────────────────────────────────────────────────────────────────────────────
 
 // The foes' turn: each foe in road order (nearest the Monarch, then lane, uid; rules.js `queue` may reorder) commits its
-// best option on the board as the ones before left it: its move (an Overwatch may strike it), then its act. → { orders, events }
+// best option on the board as the ones before left it: its move (an Overwatch may strike it), then its act; a sentry in
+// its place in that order, its act alone. → { orders, events }
 export function foeTurn (battle) {
   const from = battle.events.length
   const out = []

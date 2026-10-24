@@ -14,6 +14,11 @@ import { FUSION_LIST, SYNERGIES, UNIT_LIST, fusionDef, unitDef } from '../src/co
 import { TUNING } from '../src/tuning.js'
 import { on, scene } from './scene.js'
 
+// The fixture: a run the expert loses on floor 1 within a few battles, so a whole committed run takes a few seconds,
+// whose draft and spoils still offer the kinds of the archetypes committed below (Pale Court, Channeler 4, Undead 4).
+// sim-6 at the top of the ladder is one; re-seed it when the balance moves.
+const FIXTURE = { seed: 'sim-6', ascension: 10 }
+
 test('the archetypes come from content: every fused kind and every synergy, each with its combos in the book', () => {
   const all = ARCHETYPES()
   assert.deepEqual(all, [...new Set(FUSION_LIST.map((r) => r.result)), ...SYNERGIES.map((x) => x.id)])
@@ -43,13 +48,13 @@ test('the archetypes come from content: every fused kind and every synergy, each
 })
 
 test('a committed run plays toward its archetype alone: every target it reads is one of its combos; free play reads the book', () => {
-  // sim-10's expert falls on floor 1: a whole committed run in about a second.
+  // The fixture's run, committed: a whole run in a few seconds.
   for (const arch of ['pale_court', 'channeler_4']) {
     const ids = new Set(archetypeCombos(arch).map((c) => c.id))
     let targets = 0
     withCommit(arch, () => {
       assert.equal(commitOf(), arch)
-      const run = createRun({ seed: 'sim-10' })
+      const run = createRun(FIXTURE)
       autoplay(run, {
         act: (r, rng) => {
           if (r.state.phase !== 'battle') {
@@ -69,7 +74,7 @@ test('a committed run plays toward its archetype alone: every target it reads is
   }
   // Free play's target, once the draft is taken, is the whole book's best; committed elsewhere, the run reads another.
   useCommit(null)
-  const run = createRun({ seed: 'sim-10' })
+  const run = createRun(FIXTURE)
   while (run.state.phase === 'draft') apply(run, policy(run, null, 'expert'))
   const free = targetOf(run.state)
   assert.ok(free && BOOK.combos.includes(free))
@@ -101,7 +106,7 @@ test('the strict commitment: its kinds drafted and recruited where offered, its 
     let held = 0
     withCommit(arch, () => {
       assert.ok(isStrict())
-      const r = createRun({ seed: 'sim-10' })
+      const r = createRun(FIXTURE)
       autoplay(r, {
         act: (x, rng) => {
           const s = x.state
@@ -191,7 +196,7 @@ test('the report\'s shape: a row an archetype with its margin, and the diversity
     assert.equal(r.commit, null)
   }
   // The harness's own job: committed, its commitment put back after.
-  const c = await buildRecord({ seed: 'sim-10', commit: 'pale_court' })
+  const c = await buildRecord({ ...FIXTURE, commit: 'pale_court' })
   assert.equal(c.commit, 'pale_court')
   assert.equal(c.player, 'expert')
   assert.equal(commitOf(), null)

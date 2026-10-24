@@ -3,18 +3,18 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, perform, impatience, entryTurn, fork, addStatus, roadOf } from '../src/sim/turns.js'
+import { createBattle, order, playOut, perform, impatience, entryTurn, fork, addStatus, roadOf, reach, targetsFrom, stalled } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier, roomSize
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
-import { foeTurn, danger, options } from '../src/sim/foe.js'
+import { foeTurn, danger, options, threatOf, stepsOf } from '../src/sim/foe.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
-import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT } from '../src/sim/unit.js'
+import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT, TILES, distance, sentryHp } from '../src/sim/unit.js'
 import { sturdy, grant, tuned, FLAT_ROOMS } from './tuned.js'
 import { on, scene, slay, unit, turns } from './scene.js'
 import { fight } from './rooms.js'
@@ -50,21 +50,23 @@ function strong (run, monarch = 40, lvl = 10) {
 
 // ── content ──────────────────────────────────────────────────────────────────────────────────────
 
-test('every foe kind comes by Walk or Fly, hinted only in its flavour; depth is a room\'s threat', () => {
+test('every foe kind comes by Walk or Fly, or Holds, hinted only in its flavour; depth and sentries are a room\'s threats', () => {
   for (const u of Object.values(UNITS)) {
     // The Monarch is never a foe, nor is a fused kind: no behaviour to learn.
     if (u.monarch || u.fused) {
       assert.equal(u.behaviour, undefined, u.id)
       continue
     }
-    assert.ok(BEHAVIOURS[u.behaviour], `${u.id} behaviour`)
+    assert.ok(u.hold ? !u.behaviour : BEHAVIOURS[u.behaviour], `${u.id} behaviour`)
     assert.ok(typeof u.flavour === 'string' && u.flavour.length > 20, `${u.id} flavour`)
     // Flavour hints; it never names the behaviour it hints at.
     assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|fl(y|ies|ying|ight)|stays?|hunts?|orders?)\b/i, u.id)
   }
-  // Two ways: every kind Walks but the flyers, first met on floors 2 and 3, and a floor's boss and its
-  // brood.
-  assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'fly'])
+  // Three ways: every kind Walks but the flyers, first met on floors 2 and 3, and a floor's boss and its
+  // brood; and the sentries of floor 1, which Hold.
+  assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'fly', 'hold'])
+  assert.deepEqual(Object.values(UNITS).filter((u) => u.hold).map((u) => [u.id, u.spawn.minFloor]).sort(), [['brass_sentry', 1], ['hive_spitter', 1], ['thornling', 1]])
+  assert.ok(THREATS.sentries.name && THREATS.sentries.desc && !Object.values(UNITS).some((u) => u.threats?.includes('sentries')))
   const flyers = Object.values(UNITS).filter((u) => u.behaviour === 'fly' && u.spawn).map((u) => [u.id, u.spawn.minFloor]).sort()
   assert.deepEqual(flyers, [['ash_wyvern', 3], ['hive_drone', 2]])
   assert.deepEqual(Object.values(UNITS).filter((u) => u.behaviour === 'fly' && !u.spawn).map((u) => [u.id, u.boss]), [['swarm_queen', true]])
@@ -565,3 +567,73 @@ test('the deep floors play: every legal action applying on the way, every deep f
   assert.ok(fought.length > 0, 'it fought')
   assert.ok(fought.some((f) => f.floor >= W.floor), `it fought on floor ${W.floor}: ${fought.map((f) => f.floor)}`)
 }))
+
+// ── sentries ─────────────────────────────────────────────────────────────────────────────────────
+
+// A sentry (a kind marked `hold`) as a foe: its Move 0 all battle, its options, its spots on the danger map and the reach
+// the board draws all on the tile it stands on; it never walks, however long the camp has waited; it strikes from there,
+// at a piece of yours on its line first; a shot slays it as any foe. Its HP is capped at a tier-2 soul's; a soul of the
+// kind walks.
+test('a sentry holds its tile: never a step, out of patience too; it strikes from it, a piece of yours on its line screens, a shot slays it', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3, 10), on('brass_sentry', 50, 'foe', 0, 10, 1)])
+  const s = unit(b, 50)
+  const home = s.tile
+  assert.equal(s.move, 0)
+  assert.deepEqual([...new Set(options(b, s).map((o) => o.tile))], [home])
+  assert.deepEqual(threatOf(b, s).move, [home])
+  assert.deepEqual(stepsOf(b, s, null, 9).tiles, [home], 'its spots on the danger map: its own tile')
+  assert.ok(danger(b, 'party').ground[tileAt(0, 6)] > 0 && danger(b, 'party').ground[tileAt(0, 5)] === 0, 'its bolt reaches four tiles from where it stands, no farther')
+  const ev = turns(b, TUNING.policy.press.turns + 3)
+  assert.ok(impatience(b) >= 1, 'out of patience')
+  assert.equal(s.tile, home)
+  assert.ok(!ev.some((e) => e.type === 'move' && e.actor === 50), 'never a step')
+  assert.ok(!b.over)
+  // A Sprite four tiles below it: it bolts the Sprite from its tile (the Sprite's lance reaches three).
+  const shot = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 2, 'party', 3, 6, 10), on('brass_sentry', 50, 'foe', 3, 10, 1)])
+  const played = turns(shot)
+  assert.ok(played.some((e) => e.type === 'action' && e.actor === 50 && e.primary === 2), 'it bolts the Sprite')
+  assert.equal(unit(shot, 50).tile, tileAt(3, 10))
+  // A Knight on its line screens the Sprite: the bolt lands on the Knight.
+  const screened = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 2, 'party', 3, 6, 10), on('tomb_knight', 1, 'party', 3, 8, 10), on('brass_sentry', 50, 'foe', 3, 10, 1)])
+  const hp = unit(screened, 2).hp
+  const foes = turns(screened).filter((e) => e.type === 'damage' && e.actor === 50)
+  assert.ok(foes.length && foes.every((e) => e.target === 1), 'the Knight takes it')
+  assert.equal(unit(screened, 2).hp, hp)
+  // A shot slays it: the Sprite three tiles off, untouched at End Turn, and the battle is won.
+  const slain = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 2, 'party', 3, 7, 10), on('brass_sentry', 50, 'foe', 3, 10, 1)])
+  unit(slain, 50).hp = 1
+  turns(slain)
+  assert.deepEqual([alive(unit(slain, 50)), slain.over, slain.winner], [false, true, 'party'])
+  // Its HP at most a tier-2 soul's at its level, however the foes' HP mods swell it; a walker's is not capped.
+  const swollen = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('brass_sentry', 50, 'foe', 0, 10, 5), on('grave_ghoul', 51, 'foe', 6, 10, 5)],
+    { foeMods: [{ path: 'hp', op: 'mul', v: 4 }] })
+  assert.equal(unit(swollen, 50).maxHp, sentryHp(5))
+  assert.ok(unit(swollen, 50).maxHp < 4 * baseStats('brass_sentry', 5).hp)
+  assert.equal(unit(swollen, 51).maxHp, Math.round(4 * baseStats('grave_ghoul', 5).hp))
+  // A soul of the kind walks by its Move.
+  const mine = scene([on('monarch', 0, 'party', 3, 0), on('brass_sentry', 3, 'party', 3, 3, 1), on('grave_ghoul', 51, 'foe', 6, 10, 1)])
+  assert.equal(unit(mine, 3).move, UNITS.brass_sentry.move)
+  assert.ok(reach(mine, unit(mine, 3)).size > 0)
+})
+
+// A room of sentries alone never comes: End Turn after End Turn it waits, past the camp's patience, neither over nor
+// stalled (the guard counts turns, far past any walk across the board), until a piece of yours walks up and slays it.
+test('a battle whose foes are all sentries never stalls before your pieces can reach them: it waits, then a walk and a blow win it', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3, 30), on('thornling', 50, 'foe', 0, 10, 1)])
+  const t = unit(b, 50)
+  const home = t.tile
+  turns(b, 3 * TUNING.policy.press.turns)
+  assert.ok(!b.over && !stalled(b) && t.tile === home, 'it waits for you')
+  assert.ok(TUNING.turn.guard > TILES, 'the guard is far past any walk across the board')
+  for (let k = 0; k < 30 && !b.over; k++) {
+    const knight = unit(b, 1)
+    const strikes = () => targetsFrom(b, knight, knight.basic).includes(t)
+    if (!strikes()) {
+      const best = [...reach(b, knight).keys()].sort((x, y) => distance(x, t.tile) - distance(y, t.tile) || x - y)[0]
+      if (best !== undefined && distance(best, t.tile) < distance(knight.tile, t.tile)) order(b, { type: 'move', uid: 1, tile: best })
+    }
+    if (strikes()) order(b, { type: 'act', uid: 1, ability: knight.basic.id, target: 50 })
+    if (!b.over) order(b, { type: 'end' })
+  }
+  assert.deepEqual([b.over, b.winner, t.tile], [true, 'party', home])
+})

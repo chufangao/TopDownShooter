@@ -105,3 +105,14 @@ test('a blow a guard takes is read as guarded, the one it shielded named, as End
   const shot = events.find((e) => e.type === 'action' && e.actor === 1)
   assert.deepEqual([shot.struck, shot.guarded], [100, undefined])
 })
+
+// A sentry with nothing of yours in its reach holds as its turn comes (the board's HOLDS); once one stands in it, it
+// acts from its tile, walking nowhere.
+test('a sentry holds as its turn comes while nothing of yours is in its reach, then acts from its tile', () => {
+  const far = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3, 10), on('brass_sentry', 50, 'foe', 0, 10, 1)])
+  const held = intents(far).theirs.find((x) => x.uid === 50)
+  assert.deepEqual([held.holds, held.ability, held.to], [true, null, null])
+  const near = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 2, 'party', 0, 6, 10), on('brass_sentry', 50, 'foe', 0, 10, 1)])
+  const acts = intents(near).theirs.find((x) => x.uid === 50)
+  assert.deepEqual([acts.holds, acts.ability, acts.target, acts.to], [false, 'brass_bolt', 2, null])
+})

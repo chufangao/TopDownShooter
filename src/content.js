@@ -43,6 +43,8 @@ const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
 //   `abilities`: its kit, basics last; `aura`: mods allies within `range` get; `tracks`: two of four tiers (TRACKS)
 //   `flies`: over the walls, struck only by a ranged blow or a flyer's melee; `onFall`: a burst on the other side
 //   `temper`, `threats`, `behaviour`: how it thinks, what it does to a Monarch, how it comes down the roads as a foe
+//   `hold`: as a foe it holds its tile (the Hold behaviour, in place of `behaviour`): it never walks, and strikes from
+//   there; a soul of the kind walks by its `move` as any soul
 //   `fused`: a fusion's result, never spawned; `trineOf`: a kind's written trine; `trine`: its made trine's name
 //   `summons`: the kind its summon tiers call up; `rule`: a boss's or a capstone's rule; `art`: borrowed pictures
 //   `lock`: as a foe, it takes `share` of all damage but a status's tick unless one of its `keys` is on it as a key
@@ -321,7 +323,7 @@ export const UNIT_LIST = [
       { id: 'bramble', name: 'Bramble', desc: 'A healer with thorns.', tiers: [
         { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
         { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
-        { desc: 'Learns Thorn Lash: damage to a foe and everyone level with it.', ability: { id: 'thorn_lash' } },
+        { desc: 'Learns Thorn Lash: damage to a foe and everyone level with it, and leaves them Burning.', ability: { id: 'thorn_lash' } },
         { desc: 'Thorn Lash becomes Briar Lash: it reaches 2 tiles, and leaves everyone level with its target Brittle.', ability: { id: 'briar_lash', replace: 'thorn_lash' } }] }
     ],
     spawn: { weight: 9, minFloor: 2 },
@@ -631,7 +633,7 @@ export const UNIT_LIST = [
     flavour: 'A whelp has not yet the fire for a crowd: it spits what it has at one foe, from three paces back.'
   },
   {
-    // The constructs' turret: a tile a turn, and a bolt three tiles long at one foe.
+    // The constructs' turret: a bolt four tiles long at one foe; as a foe it holds its post, as a soul a tile a turn.
     id: 'brass_sentry',
     name: 'Brass Sentry',
     kin: 'construct',
@@ -657,11 +659,12 @@ export const UNIT_LIST = [
     ],
     spawn: { weight: 8, minFloor: 1 },
     threats: ['reach'],
-    behaviour: 'walk',
-    flavour: 'A sentry was built to stand a post, not to walk to one: it grinds forward a pace at a time, and looses at whatever comes within three.'
+    hold: true,
+    flavour: 'A sentry was built to keep a post, not to leave one: bolted to its ground, it looses at whatever comes within four.'
   },
   {
-    // The insects' shooter: a spit three tiles long at one foe, from a shell that cannot take much back.
+    // The insects' shooter: a spit three tiles long at one foe that leaves it Brittle, from a shell that cannot take much
+    // back; as a foe it holds its tile.
     id: 'hive_spitter',
     name: 'Hive Spitter',
     kin: 'insect',
@@ -685,12 +688,12 @@ export const UNIT_LIST = [
         { desc: 'Swarm Cloud becomes Reaping Swarm: 34 power to a foe and every foe next to it, and leaves them Brittle.', ability: { id: 'reaping_swarm', replace: 'swarm_cloud' } }] }
     ],
     spawn: { weight: 8, minFloor: 1 },
-    threats: ['reach'],
-    behaviour: 'walk',
-    flavour: 'A spitter\'s shell is thin as a wing: it keeps three paces behind the swarm, and spits at the weakest thing it sees.'
+    threats: ['reach', 'drain'],
+    hold: true,
+    flavour: 'A spitter\'s shell is thin as a wing: it clings where the hive set it, and spits an acid that eats armour at the weakest thing it sees.'
   },
   {
-    // The fae's blocker: it holds the road, and its lash takes the whole row it stands level with.
+    // The fae's bramble: as a foe it holds its tile, and its lash sets the whole row level with its target Burning.
     id: 'thornling',
     name: 'Thornling',
     kin: 'fae',
@@ -714,9 +717,9 @@ export const UNIT_LIST = [
         { desc: 'Thorn Lash becomes Briar Lash: it reaches 2 tiles, and leaves everyone level with its target Brittle.', ability: { id: 'briar_lash', replace: 'thorn_lash' } }] }
     ],
     spawn: { weight: 8, minFloor: 1 },
-    threats: ['shape'],
-    behaviour: 'walk',
-    flavour: 'A thornling roots itself across the road like a hedge, and its thorns lash at everything that stands level with it.'
+    threats: ['shape', 'burn'],
+    hold: true,
+    flavour: 'A thornling roots itself in the ground like a hedge, and its smouldering thorns lash at everything that stands level with it.'
   },
   {
     // Tomb Knight ×2 + Bone Chanter: a 2×2 wall whose sweep strikes every foe beside it, its aura sheltering allies within 2.
@@ -1396,7 +1399,7 @@ const ABILITY_LIST = [
   },
   { id: 'wildfire', name: 'Wildfire', shape: 'blast', range: 4, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'damage', power: 24, keyed: { status: 'burning', mul: 3 } }] },
   { id: 'bloom', name: 'Bloom', shape: 'ally', tint: '#ffe9a8', anim: 'cast_beam', effects: [{ op: 'heal', power: 34 }, { op: 'apply_status', status: 'regen' }] },
-  { id: 'thorn_lash', name: 'Thorn Lash', shape: 'row', melee: true, tint: '#ffe9a8', anim: 'melee_lunge', effects: [{ op: 'damage', power: 20, keyed: { status: 'burning', mul: 3 } }] },
+  { id: 'thorn_lash', name: 'Thorn Lash', shape: 'row', melee: true, tint: '#ffe9a8', anim: 'melee_lunge', effects: [{ op: 'damage', power: 20, keyed: { status: 'burning', mul: 3 } }, { op: 'apply_status', status: 'burning' }] },
   { id: 'execute', name: 'Execute', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 48, keyed: { status: 'bleeding', mul: 4 } }] },
   {
     id: 'earthshatter',
@@ -1612,10 +1615,10 @@ const ABILITY_LIST = [
   { id: 'drone_sting', name: 'Sting', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 24, keyed: { status: 'withered', mul: 3 } }] },
   // The simple floor-1 kinds' shots, three tiles long at one foe, each its kind's basic, and the tiers that sharpen them.
   { id: 'ember_spit', name: 'Ember Spit', shape: 'single', range: 3, tint: '#ff7a33', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'hexed', mul: 3 } }] },
-  { id: 'brass_bolt', name: 'Brass Bolt', shape: 'single', range: 3, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
+  { id: 'brass_bolt', name: 'Brass Bolt', shape: 'single', range: 4, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
   { id: 'long_bolt', name: 'Long Bolt', shape: 'single', range: 4, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 3 } }] },
   { id: 'piercing_bolt', name: 'Piercing Bolt', shape: 'column', range: 4, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
-  { id: 'acid_spit', name: 'Acid Spit', shape: 'single', range: 3, tint: '#9bd14a', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
+  { id: 'acid_spit', name: 'Acid Spit', shape: 'single', range: 3, tint: '#9bd14a', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }, { op: 'apply_status', status: 'brittle' }] },
   {
     id: 'venom_spit',
     name: 'Venom Spit',
@@ -2428,11 +2431,14 @@ const ROLE_LIST = [
 ]
 
 // How a foe moves, by its kind's `behaviour`: Walk for every ground kind (the one drawn road), Fly for the flyers (the
-// air road). A foe chooses how far it comes each turn, up to its Move, never where; the text says only what each does.
+// air road); Hold for a kind marked `hold` (a sentry), which never walks. A foe chooses how far it comes each turn, up
+// to its Move, never where; the text says only what each does.
 export const BEHAVIOURS = {
   walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch; a piece of yours in its way blocks it.' },
   // A flyer flies the air road: no wall stops it, but a piece of yours in its way does, and it never goes round.
-  fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls; a piece of yours in its way, on the ground or in the air, blocks it. Ranged blows and flyers alone reach it.' }
+  fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls; a piece of yours in its way, on the ground or in the air, blocks it. Ranged blows and flyers alone reach it.' },
+  // A sentry: as a foe it keeps the tile it stands on (its kind's soul walks as any soul).
+  hold: { name: 'Hold', desc: 'Holds its tile and strikes from it; it never comes, and the battle is not won while it stands.' }
 }
 
 // What laying a status is worth to the policy, in HP-equivalents a stack.
@@ -2451,7 +2457,9 @@ export const THREATS = {
   burn: { name: 'Burn', desc: 'Leaves a fire that keeps hurting after the blow.' },
   bleed: { name: 'Bleed', desc: 'Opens wounds that bleed deeper with every blow.' },
   // A room's, not a kind's: more foes enter behind the first (a late pair, waves).
-  depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' }
+  depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' },
+  // A room's, not a kind's: one of its foes Holds (a kind marked `hold`).
+  sentries: { name: 'Sentries', desc: 'Some foes hold their tile and strike from it: they never come, and the battle is not won while one stands.' }
 }
 
 // ── synergies ────────────────────────────────────────────────────────────────────────────────

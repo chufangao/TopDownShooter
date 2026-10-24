@@ -4,7 +4,7 @@ import { TUNING } from '../tuning.js'
 import { UNIT_LIST, unitDef, abilityDef, statusDef, relicDef, THREATS } from '../content.js'
 import { createRng } from './rng.js'
 import {
-  makeUnit, autoPlace, slotAt, CENTRE_OUT, nearestOpen, colOf, FORMATION, SLOTS, meleeOnly, abilitiesOf, isBlow,
+  makeUnit, autoPlace, slotAt, CENTRE_OUT, nearestOpen, colOf, FORMATION, SLOTS, ROWS, COLS, meleeOnly, abilitiesOf, isBlow,
   isAllyShape, summonsOf, summonedOf
 } from './unit.js'
 import { lined, basicOf } from './turns.js'
@@ -61,10 +61,13 @@ export function walkWithout (map, type) {
 }
 
 const threatsOf = (foes) => new Set(foes.flatMap((f) => unitDef(f.id).threats ?? []))
-// A room's ({ foes, waves? }): every wave's foes', and depth when more come behind the first.
+// A room's ({ foes, waves? }): every wave's foes', depth when more come behind the first, and sentries when one of
+// them holds its tile (a kind marked `hold`).
 export const roomThreats = (room) => {
-  const out = threatsOf([room.foes, ...(room.waves ?? []).map((w) => w.foes)].flat())
+  const foes = [room.foes, ...(room.waves ?? []).map((w) => w.foes)].flat()
+  const out = threatsOf(foes)
   if (room.waves?.length) out.add('depth')
+  if (foes.some((f) => unitDef(f.id).hold)) out.add('sentries')
   return out
 }
 
@@ -88,9 +91,12 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   const elite = node.type === 'elite'
   if (node.type === 'boss') boss ??= bossFor(seed, floor)?.id
   else boss = null
-  // Floor 1's fights of the first TUNING.spawn.openingTier ranks draw from its tier-1 kinds alone.
+  // Floor 1's fights of the first TUNING.spawn.openingTier ranks draw from its tier-1 kinds alone; its rooms before rank
+  // sentry.from draw no sentry.
   const drawn = spawnPool(poolFloor(floor), elite ? sp.eliteTier : 0)
-  const keep = !elite && !boss && floor === 1 && node.rank <= sp.openingTier ? (u) => u.tier === 1 : () => true
+  const early = floor === 1 && node.rank < sp.sentry.from
+  const opening = !elite && !boss && floor === 1 && node.rank <= sp.openingTier
+  const keep = (u) => (!opening || u.tier === 1) && (!early || !u.hold)
   const pool = { units: drawn.units.filter(keep), weights: drawn.weights.filter((_, i) => keep(drawn.units[i])) }
   const n = Math.min(SLOTS, roomSize(floor, elite, ascension, node.rank) + grow.count)
   const cohort = at(sp.cohort, floor) + grow.cohort
@@ -137,16 +143,16 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   return room
 
   // The boss at the centre of its first row, its court on the slots nearest it; a court that stands ahead of it
-  // (`front`: the Barrow Marshal's) across the front row from the middle lanes out, the boss behind its middle.
+  // (`front`: the Barrow Marshal's) across the front row from the middle lanes out, the boss behind its middle. A
+  // sentry of the court takes a sentry's post (postOf) where one is free.
   function courtOf (list, level) {
     const front = !!unitDef(boss).court.front
     const foes = [{ id: boss, lvl: level, slot: slotAt(front ? 1 : 0, CENTRE_OUT[0]) }]
     const taken = new Set([foes[0].slot])
     for (const id of list) {
-      const slot = (front ? CENTRE_OUT.map((c) => slotAt(0, c)).find((x) => !taken.has(x)) : null) ?? nearestOpen(FORMATION, foes[0].slot, taken)
-      if (slot < 0) break
-      taken.add(slot)
-      foes.push({ id, lvl: level, slot })
+      const near = (front ? CENTRE_OUT.map((c) => slotAt(0, c)).find((x) => !taken.has(x)) : null) ?? nearestOpen(FORMATION, foes[0].slot, taken)
+      if (near < 0) break
+      foes.push({ id, lvl: level, slot: postOf(id, taken, near) })
     }
     return foes
   }
@@ -258,22 +264,37 @@ export function answerArmy (s, army) {
   }
 }
 
-// A wave's formation: `ids` placed from the front row, then `captains` of them (by the shuffle, or the first `led`) each
-// leading `cohort` more foes on the free slots nearest it (nearestOpen), dropped when none is free. A captain leads its
-// own kind, a `led` one the wave's other kinds. Each is an ordinary foe: it pays essence, and may be recruited.
+// A sentry's posts in a formation, in order: the far row from the wings in, then the middle row's wings: off the road
+// a wave's walkers take, so none is held behind one (TUNING.spawn.sentry).
+const WINGS_IN = CENTRE_OUT.slice().reverse()
+export const SENTRY_POSTS = [...WINGS_IN.map((c) => slotAt(ROWS - 1, c)), ...WINGS_IN.slice(0, COLS - 3).map((c) => slotAt(ROWS - 2, c))]
+// Where foe `id` stands, of the free slots (`taken` grows with it): a sentry the first free post, else `near` (a slot
+// already found free; −1: none).
+function postOf (id, taken, near = -1) {
+  const slot = (unitDef(id).hold ? SENTRY_POSTS.find((x) => !taken.has(x)) : undefined) ?? near
+  if (slot >= 0) taken.add(slot)
+  return slot
+}
+
+// A wave's formation: its sentries on their posts (postOf), the rest of `ids` placed from the front row, then `captains`
+// of them (by the shuffle, or the first `led`) each leading `cohort` more foes on the free slots nearest it
+// (nearestOpen; a sentry of the cohort on a post), dropped when none is free. A captain leads its own kind, a `led` one
+// the wave's other kinds. Each is an ordinary foe: it pays essence, and may be recruited.
 function formation (rng, ids, lvl, captains, cohort, led = 0) {
   const foes = ids.map((id) => ({ id, lvl, slot: -1 }))
   const cols = [CENTRE_OUT.slice(0, 3), ...[3, 5].map((i) => CENTRE_OUT.slice(i, i + 2))].flatMap((band) => rng.shuffle(band))
+  const posted = new Set()
+  for (const f of foes) f.slot = postOf(f.id, posted)
   autoPlace(led ? rng.shuffle(foes) : foes, { cols })
   if (!cohort || !captains) return foes
   const taken = new Set(foes.map((f) => f.slot))
   const rest = foes.slice(led)
   for (const c of led ? foes.slice(0, led) : rng.shuffle(foes.slice()).slice(0, captains)) {
     for (let k = 0; k < cohort; k++) {
-      const slot = nearestOpen(FORMATION, c.slot, taken)
-      if (slot < 0) break
-      taken.add(slot)
-      foes.push({ id: led && rest.length ? rng.pick(rest).id : c.id, lvl, slot })
+      const near = nearestOpen(FORMATION, c.slot, taken)
+      if (near < 0) break
+      const id = led && rest.length ? rng.pick(rest).id : c.id
+      foes.push({ id, lvl, slot: postOf(id, taken, near) })
     }
   }
   return foes

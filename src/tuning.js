@@ -9,8 +9,10 @@ export const TUNING = {
   // foes' shadows' too); `fight`, `elite` a room's foes (rounded); `every` the turns between waves (rounded, at least 1);
   // `monarchHp` the Monarch's base HP; `price` every price (an elite's bounty is pay, not a price).
   ascension: ladder(10, { foeHp: 1.4, foeAtk: 1.2, fight: 1.2, elite: 1.2, every: 0.75, monarchHp: 0.85, price: 1.2 }),
-  // `turn.guard`: the sim's bound on a battle's turns, past which it is a stall. `policy.press`: the camp's pressure, 0
-  // as the last wave enters, 1 `turns` turns later, nudged ± `strength` by the trade it could make.
+  // `turn.guard`: the sim's bound on a battle's turns, past which it is a stall: a count of turns alone, far past any walk
+  // across the board, so a room of sentries (which never come) waits for your pieces to go to it and never stalls
+  // first. `policy.press`: the camp's pressure, 0 as the last wave enters, 1 `turns` turns later, nudged ± `strength`
+  // by the trade it could make.
   turn: { guard: 1000 },
   policy: {
     press: { strength: 0.25, turns: 6 },
@@ -214,6 +216,10 @@ export const TUNING = {
     // its foes can bring: a room on a walk that misses one is drawn again wanting it, up to `routeTries` times a type
     // in each of `routePasses` passes.
     variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 24, routePasses: 8 },
+    // Sentries (kinds marked `hold`): floor 1's rooms of rank below `from` draw none; a sentry foe stands with at most
+    // the HP of a soul kind of tier `hpTier` at its level (unit.js sentryHp). A wave's sentries take its far row, the
+    // wings first, then the middle row's wings: off the road its walkers take (spawn.js formation).
+    sentry: { from: 3, hpTier: 2 },
     // From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave, `.elite` in an elite), each
     // leading a cohort of cohort[floor − 1] more. An elite's captains are of its foes, cohorts of their own kind; a
     // fight's are drawn `captains.above` tiers over the room's target, of tier minTier[floor − 1] at least, cohorts of

@@ -59,7 +59,7 @@ bestiary.record(FOES.map((u) => u.id))
 test('a met foe\'s card tells its reach, its Move, its way and its way line; no word is Flank, ring or gauge', () => {
   for (const u of FOES) {
     const text = reachRule({ id: u.id, lvl: 1 }, true)
-    assert.ok(text.includes(BEHAVIOURS[u.behaviour ?? 'walk'].desc), `${u.id}: its way`)
+    assert.ok(text.includes(BEHAVIOURS[u.hold ? 'hold' : u.behaviour ?? 'walk'].desc), `${u.id}: its way`)
     if (u.temper) assert.ok(text.includes(temperLine(temperOf(u.id)).toLowerCase()), `${u.id}: ${text}`)
     assert.match(reachText({ id: u.id, lvl: 1 }, true), /^Reach \d+ · (melee|ranged) · Energy \d+/)
     assert.ok(!/flank|\bring|gauge|halts?\b/i.test(text + reachText({ id: u.id, lvl: 1 }, true)), `${u.id}: ${text}`)

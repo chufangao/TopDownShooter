@@ -14,6 +14,7 @@ import {
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 import { unitDef } from '../src/content.js'
+import { SENTRY_POSTS } from '../src/sim/spawn.js'
 import { tuned } from './tuned.js'
 import { on, scene, unit, moves, turns } from './scene.js'
 
@@ -119,8 +120,9 @@ test('a captain\'s cohort are foes of their own: a fight\'s of its wave\'s other
     const band = g.slice(drawn)
     const captain = g[0]
     assert.ok(band.every((f) => g.slice(1, drawn).some((x) => x.id === f.id)), JSON.stringify(g))
+    // A sentry of the cohort stands on a sentry's post instead (spawn.js SENTRY_POSTS), off its wave's road.
     const near = (a, b) => Math.abs(Math.floor(a / COLS) - Math.floor(b / COLS)) + Math.abs((a % COLS) - (b % COLS))
-    assert.ok(band.every((f) => near(captain.slot, f.slot) <= 2), JSON.stringify(g))
+    assert.ok(band.every((f) => (unitDef(f.id).hold ? SENTRY_POSTS.includes(f.slot) : near(captain.slot, f.slot) <= 2)), JSON.stringify(g))
     // In a battle each is a foe unit of its own, with its own uid and a body's HP.
     const run = createRun({ start: START_PARTY, seed: `cohort${i}` })
     const node = availableNodes(run)[0]

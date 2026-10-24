@@ -1,7 +1,7 @@
 // A unit outside the battle: base stats and growth, stat modifiers, synergies, its reach, its summons and its
 // footprint, where it deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
-import { unitDef, campDef, abilityDef, relicDef, SYNERGIES, ROLES } from '../content.js'
+import { unitDef, campDef, abilityDef, relicDef, SYNERGIES, ROLES, UNIT_LIST } from '../content.js'
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,20 @@ export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unit
 
 // Its kind's Move before mods (every kind carries one, the Monarch's 0): a stat path tiers, auras and statuses add to.
 const baseMove = (id) => unitDef(id).move
-export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
+// How a foe of its kind moves: Hold for a kind marked `hold` (a sentry), else its `behaviour` (Walk by default).
+export const behaviourOf = (u) => (unitDef(u.id).hold ? 'hold' : unitDef(u.id).behaviour ?? 'walk')
+// The most HP a sentry stands with as a foe at level `lvl` (turns.js fit): the median of the soul kinds of tier
+// TUNING.spawn.sentry.hpTier at that level, so the walk to it is the cost, not the fight.
+export function sentryHp (lvl) {
+  let hp = SENTRY_HP.get(lvl)
+  if (hp === undefined) {
+    const list = UNIT_LIST.filter((d) => d.tier === TUNING.spawn.sentry.hpTier && d.spawn && !d.boss).map((d) => baseStats(d.id, lvl).hp).sort((a, b) => a - b)
+    hp = list.length ? list[Math.floor((list.length - 1) / 2)] : Infinity
+    SENTRY_HP.set(lvl, hp)
+  }
+  return hp
+}
+const SENTRY_HP = new Map()
 // How far a melee blow with no range of its own reaches: the kind's `arm`, 1, or 2 for a long-armed kind.
 export const armOf = (u) => unitDef(u.id).arm ?? 1
 // How far a blow of its reaches: a melee blow its own range, else its arm; a ranged blow its range (none: the board).
