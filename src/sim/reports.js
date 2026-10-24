@@ -64,8 +64,8 @@ const buildOf = (s) => {
 //                margin, prep, truncated, sharp), solves (how many), prep (the formation's: index fielded, candidates
 //                solved, those won), probe (probeOf: weaker play from its opening), keys, keysLocked and locks (the
 //                keys your side's blows spent, of those the ones that opened a lock (the rest were paid with no lock to
-//                open), and the locked foes that stood); with `setups` its setup, with `snapshots` its snapshot and
-//                outcome (for refights)
+//                open), and the locked foes that stood), sentries (the foes that held their tile); with `setups` its
+//                setup, with `snapshots` its snapshot and outcome (for refights)
 //   result, floor, camp, relics, reaped, death   how it ended
 //   monarch      its max HP, Command and Arise copies, and Arise's reach and tier
 //   legendaries, build, ossuary   what it held at the end (buildOf)
@@ -139,6 +139,7 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
           keys: b.events.filter((e) => e.type === 'key' && b.byUid.get(e.actor)?.side === 'party').length,
           keysLocked: b.events.filter((e) => e.type === 'key' && b.byUid.get(e.actor)?.side === 'party' && unitDef(b.byUid.get(e.target)?.id)?.lock).length,
           locks: b.units.filter((u) => u.side === 'foe' && !u.shadow && unitDef(u.id)?.lock).length,
+          sentries: b.units.filter((u) => u.side === 'foe' && !u.shadow && unitDef(u.id)?.hold).length,
           colossi: r.setup.party.filter((u) => u.uid !== 0 && sizeOf(u) === 2).length,
           syn: synergiesAt(b),
           lead: leadOf(r.setup.party.filter((u) => u.uid !== 0)),
