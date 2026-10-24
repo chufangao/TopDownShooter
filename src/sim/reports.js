@@ -62,8 +62,10 @@ const buildOf = (s) => {
 //                unspent as it began), room and rank (its room's type and rank), mhp and mend (the Monarch's share of
 //                its max HP as it began and ended), solve (its first solve's stats: solved, level, plans, turns,
 //                margin, prep, truncated, sharp), solves (how many), prep (the formation's: index fielded, candidates
-//                solved, those won), probe (probeOf: weaker play from its opening); with `setups` its setup, with
-//                `snapshots` its snapshot and outcome (for refights)
+//                solved, those won), probe (probeOf: weaker play from its opening), keys, keysLocked and locks (the
+//                keys your side's blows spent, of those the ones that opened a lock (the rest were paid with no lock to
+//                open), and the locked foes that stood); with `setups` its setup, with `snapshots` its snapshot and
+//                outcome (for refights)
 //   result, floor, camp, relics, reaped, death   how it ended
 //   monarch      its max HP, Command and Arise copies, and Arise's reach and tier
 //   legendaries, build, ossuary   what it held at the end (buildOf)
@@ -134,6 +136,9 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
           summoned: b.units.filter((u) => u.summoned).length,
           waves: b.events.filter((e) => e.type === 'wave').length,
           foesIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').length,
+          keys: b.events.filter((e) => e.type === 'key' && b.byUid.get(e.actor)?.side === 'party').length,
+          keysLocked: b.events.filter((e) => e.type === 'key' && b.byUid.get(e.actor)?.side === 'party' && unitDef(b.byUid.get(e.target)?.id)?.lock).length,
+          locks: b.units.filter((u) => u.side === 'foe' && !u.shadow && unitDef(u.id)?.lock).length,
           colossi: r.setup.party.filter((u) => u.uid !== 0 && sizeOf(u) === 2).length,
           syn: synergiesAt(b),
           lead: leadOf(r.setup.party.filter((u) => u.uid !== 0)),
